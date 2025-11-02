@@ -1,0 +1,377 @@
+{
+  "name": "Email Manager Enhanced",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {
+          "readStatus": "both"
+        }
+      },
+      "id": "d6472fdf-14d4-4454-a0a4-e91a255796b0",
+      "name": "Gmail Trigger",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -6736,
+        1056
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "Al0HJSyp5CIMs4Ep",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Email details:\nid: {{ $json.id }}\nfrom: {{ $json.From }}\nsubject: {{ $json.Subject }}\nmessage: {{ $json.snippet }}",
+        "options": {
+          "systemMessage": "### Goal:\nTo classify incoming emails and take intelligent actions.\n### Tasks:\n1. Mark unimportant emails as read and auto-reply.\n2. Keep important emails unread and schedule follow-ups in Google Calendar.\n3. Extract event date and time from the email content if mentioned.\n### Output Format:\n{\n  \"importance\": \"important\" | \"unimportant\",\n  \"category\": \"Work\" | \"Personal\" | \"Finance\" | \"Promotions\",\n  \"eventDate\": \"YYYY-MM-DD\" | null,\n  \"eventTime\": \"HH:MM\" | null\n}"
+        }
+      },
+      "id": "4b9424d1-2107-4b97-a47b-308e6fbcb6e5",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        -6512,
+        1056
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "options": {}
+      },
+      "id": "ace1cc0a-2e45-4927-87d4-73a32b2f6fcf",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -6448,
+        1280
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "23Y40Fpvtk5ui5ND",
+          "name": "n8n free OpenAI API credits"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "id-1",
+              "leftValue": "={{ $json.importance }}",
+              "rightValue": "important",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "85a5e101-02b6-40d1-8786-3bae63ccc561",
+      "name": "If Important",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -5936,
+        1056
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "markAsRead",
+        "messageId": "={{ $('Gmail Trigger').item.json.id }}"
+      },
+      "id": "4d75756c-8489-4abe-ac80-6c8d056d4b1e",
+      "name": "Mark as Read (Unimportant)",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        -5712,
+        992
+      ],
+      "webhookId": "4e6d6150-8852-4323-ac23-dca5ada15615",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "Al0HJSyp5CIMs4Ep",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Gmail Trigger').item.json.From || $('Gmail Trigger').item.json.from || 'noreply@example.com' }}",
+        "subject": "Auto-reply: Received your email",
+        "emailType": "text",
+        "message": "Hi there,\n\nYour email has been received. I'll get back to you shortly if necessary.\n\nBest regards,\nAI Assistant",
+        "options": {}
+      },
+      "id": "4679a7f3-3988-4818-922d-c81569faf7c6",
+      "name": "Auto Reply (Unimportant)",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        -5264,
+        912
+      ],
+      "webhookId": "d61e160c-1665-4bbb-b490-c85015b90b3d",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "Al0HJSyp5CIMs4Ep",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "calendar": {
+          "__rl": true,
+          "value": "manchemram8727@gmail.com",
+          "mode": "list",
+          "cachedResultName": "manchemram8727@gmail.com"
+        },
+        "start": "={{ $('Parse AI Output').item.json.eventDate }}",
+        "end": "={{ DateTime.fromISO($('Parse AI Output').item.json.eventDate).plus({ hours: 1 }).toISO() }}",
+        "additionalFields": {
+          "description": "=Important email from {{ $('Gmail Trigger').item.json.From }} categorized as {{ $('Parse AI Output').item.json.category }}",
+          "summary": "=Follow-up: {{ $('Gmail Trigger').item.json.Subject }}"
+        }
+      },
+      "id": "57392f19-ec81-4dff-a29a-beb91fc18d67",
+      "name": "Google Calendar (Important)",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        -5264,
+        1200
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "xWlPBvv5jkiX9daC",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const allItems = $input.all();\n\nconst important = allItems.filter(item => {\n  const gmailData = item.json;\n  return $('If Important').item?.json?.importance === 'important';\n}).length;\n\nconst unimportant = allItems.length - important;\n\nreturn [{\n  json: {\n    total: allItems.length,\n    important: important,\n    unimportant: unimportant,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "40bd526d-49cb-4874-849e-cd37e449c8e4",
+      "name": "Analytics Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -5040,
+        1056
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "id-1",
+              "leftValue": "={{ $('Gmail Trigger').item.json.From }}",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            },
+            {
+              "id": "id-2",
+              "leftValue": "={{ $('Gmail Trigger').item.json.From }}",
+              "rightValue": "noreply@google.com",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "3384c66a-c899-4dc4-b39f-fa92f1286412",
+      "name": "Check Valid Sender",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -5488,
+        992
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Parse AI output JSON string and extract importance, category, eventDate, and eventTime\nconst aiOutput = $input.item.json.output;\n\nlet parsedData;\ntry {\n  // Try to parse the output as JSON\n  parsedData = JSON.parse(aiOutput);\n} catch (error) {\n  // If parsing fails, try to extract JSON from the string\n  const jsonMatch = aiOutput.match(/\\{[^}]+\\}/s);\n  if (jsonMatch) {\n    parsedData = JSON.parse(jsonMatch[0]);\n  } else {\n    // Fallback: return default values if parsing fails\n    parsedData = {\n      importance: 'unimportant',\n      category: 'Personal'\n    };\n  }\n}\n\n// Calculate fallback date (24 hours from now)\nconst fallbackDate = new Date();\nfallbackDate.setHours(fallbackDate.getHours() + 24);\nconst fallbackDateISO = fallbackDate.toISOString();\n\nreturn {\n  json: {\n    importance: parsedData.importance || 'unimportant',\n    category: parsedData.category || 'Personal',\n    eventDate: parsedData.eventDate || fallbackDateISO,\n    eventTime: parsedData.eventTime || fallbackDate.toTimeString().slice(0, 5),\n    originalOutput: aiOutput\n  }\n};"
+      },
+      "id": "88c5c0d4-49eb-4f4d-9bda-b0a5d79f4d94",
+      "name": "Parse AI Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -6160,
+        1056
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Important": {
+      "main": [
+        [
+          {
+            "node": "Google Calendar (Important)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark as Read (Unimportant)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Calendar (Important)": {
+      "main": [
+        [
+          {
+            "node": "Analytics Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Auto Reply (Unimportant)": {
+      "main": [
+        [
+          {
+            "node": "Analytics Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark as Read (Unimportant)": {
+      "main": [
+        [
+          {
+            "node": "Check Valid Sender",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Valid Sender": {
+      "main": [
+        [
+          {
+            "node": "Auto Reply (Unimportant)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Analytics Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Output": {
+      "main": [
+        [
+          {
+            "node": "If Important",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "ce11aa5b-01d5-4637-af25-462a70a70291",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "26c2c53ce3ddf75bdeffbb996efd0bb255060238deec966ff27dd17c5208c739"
+  },
+  "id": "jxOfaO21tSOcRYD1",
+  "tags": []
+}
